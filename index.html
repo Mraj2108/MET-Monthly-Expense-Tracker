@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Monthly Expense Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FAF9F6;
+    --ink:#1C1B1A;
+    --green:#2E5339;
+    --green-tint:#E8EDE6;
+    --rust:#B5482A;
+    --rust-tint:#F6E6E0;
+    --gray:#8A8580;
+    --line:#DCD8D0;
+    --card:#FFFFFF;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .mono{font-family:'IBM Plex Mono', monospace;}
+  .serif{font-family:'Source Serif 4', serif;}
+
+  /* ---------- top bar ---------- */
+  header{
+    border-bottom:1px solid var(--line);
+    padding:1.25rem 2rem;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:1rem;
+  }
+  .brand{
+    font-family:'Source Serif 4', serif;
+    font-weight:700;
+    font-size:1.5rem;
+    letter-spacing:0.01em;
+  }
+  .brand span{color:var(--green); font-style:italic;}
+  .month-nav{
+    display:flex;
+    align-items:center;
+    gap:0.9rem;
+  }
+  .month-nav button{
+    background:none;
+    border:1px solid var(--line);
+    border-radius:4px;
+    width:2rem; height:2rem;
+    font-size:1rem;
+    cursor:pointer;
+    color:var(--ink);
+    transition:background .15s;
+  }
+  .month-nav button:hover{background:var(--green-tint); border-color:var(--green);}
+  .month-label{
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:600;
+    font-size:1.05rem;
+    min-width:9.5rem;
+    text-align:center;
+  }
+
+  /* ---------- layout ---------- */
+  .wrap{
+    max-width:1180px;
+    margin:0 auto;
+    padding:2rem;
+    display:grid;
+    grid-template-columns:1fr 1.3fr;
+    gap:2rem;
+  }
+  @media (max-width: 880px){
+    .wrap{grid-template-columns:1fr; padding:1.25rem;}
+    header{padding:1rem 1.25rem;}
+  }
+
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:1.5rem;
+  }
+  .panel + .panel{margin-top:1.5rem;}
+
+  h2{
+    font-family:'Source Serif 4', serif;
+    font-weight:600;
+    font-size:1.15rem;
+    margin-bottom:1rem;
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+  }
+  h2 .meta{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.8rem;
+    color:var(--gray);
+    font-weight:400;
+  }
+
+  /* ---------- summary stat row ---------- */
+  .stat-row{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+    margin-bottom:1.5rem;
+  }
+  .stat{
+    background:var(--card);
+    padding:1.1rem 1.25rem;
+  }
+  .stat .label{
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.08em;
+    color:var(--gray);
+    margin-bottom:0.4rem;
+  }
+  .stat .value{
+    font-family:'Source Serif 4', serif;
+    font-weight:700;
+    font-size:1.5rem;
+  }
+  .stat .value.rust{color:var(--rust);}
+  .stat .value.green{color:var(--green);}
+  @media (max-width:600px){
+    .stat-row{grid-template-columns:1fr;}
+  }
+
+  /* ---------- budget gauges (signature element) ---------- */
+  .gauge-row{
+    margin-bottom:1.1rem;
+  }
+  .gauge-row:last-child{margin-bottom:0;}
+  .gauge-top{
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    font-size:0.85rem;
+    margin-bottom:0.35rem;
+  }
+  .gauge-top .cat-name{font-weight:500;}
+  .gauge-top .cat-figs{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.78rem;
+    color:var(--gray);
+  }
+  .gauge-top .cat-figs .over{color:var(--rust); font-weight:600;}
+  .gauge-track{
+    position:relative;
+    height:10px;
+    background:var(--green-tint);
+    border-radius:2px;
+    overflow:hidden;
+  }
+  .gauge-fill{
+    position:absolute;
+    top:0; left:0; bottom:0;
+    background:var(--green);
+    border-radius:2px;
+    transition:width .4s ease;
+  }
+  .gauge-fill.over{background:var(--rust);}
+  .gauge-tick{
+    position:absolute;
+    top:-3px; bottom:-3px;
+    width:2px;
+    background:var(--ink);
+  }
+  .no-budget-note{
+    font-size:0.8rem;
+    color:var(--gray);
+    font-style:italic;
+  }
+
+  /* ---------- transaction form ---------- */
+  form.add-form{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:0.7rem;
+    margin-bottom:1.25rem;
+  }
+  form.add-form .full{grid-column:1 / -1;}
+  label{
+    font-size:0.72rem;
+    text-transform:uppercase;
+    letter-spacing:0.07em;
+    color:var(--gray);
+    display:block;
+    margin-bottom:0.3rem;
+  }
+  input, select{
+    width:100%;
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:0.55rem 0.6rem;
+    font-family:'Inter', sans-serif;
+    font-size:0.9rem;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  input:focus, select:focus, button:focus{
+    outline:2px solid var(--green);
+    outline-offset:1px;
+  }
+  input[type="number"]{font-family:'IBM Plex Mono', monospace;}
+
+  .btn{
+    border:none;
+    border-radius:4px;
+    padding:0.6rem 1.1rem;
+    font-family:'Inter', sans-serif;
+    font-weight:600;
+    font-size:0.85rem;
+    cursor:pointer;
+    transition:opacity .15s;
+  }
+  .btn:hover{opacity:0.85;}
+  .btn-primary{background:var(--ink); color:var(--paper);}
+  .btn-outline{background:none; border:1px solid var(--line); color:var(--ink);}
+  .btn-outline:hover{border-color:var(--green); background:var(--green-tint); opacity:1;}
+  .btn-danger-text{
+    background:none; border:none; color:var(--rust);
+    font-family:'IBM Plex Mono', monospace; font-size:0.78rem;
+    cursor:pointer; padding:0.2rem 0.4rem;
+  }
+  .btn-danger-text:hover{text-decoration:underline;}
+
+  /* ---------- transaction table ---------- */
+  table{width:100%; border-collapse:collapse; font-size:0.85rem;}
+  thead th{
+    text-align:left;
+    font-size:0.7rem;
+    text-transform:uppercase;
+    letter-spacing:0.07em;
+    color:var(--gray);
+    border-bottom:1px solid var(--line);
+    padding:0 0 0.5rem 0;
+    font-weight:500;
+  }
+  thead th.num{text-align:right;}
+  tbody td{
+    padding:0.6rem 0;
+    border-bottom:1px solid var(--line);
+    vertical-align:middle;
+  }
+  tbody tr:last-child td{border-bottom:none;}
+  td.num{
+    text-align:right;
+    font-family:'IBM Plex Mono', monospace;
+    font-weight:500;
+    white-space:nowrap;
+  }
+  td.cat{
+    color:var(--gray);
+    font-size:0.78rem;
+  }
+  .empty-row td{
+    text-align:center;
+    color:var(--gray);
+    font-style:italic;
+    padding:2rem 0;
+  }
+
+  /* ---------- comparison chart ---------- */
+  .chart-area{
+    display:flex;
+    align-items:flex-end;
+    gap:1.2rem;
+    height:160px;
+    padding-top:1rem;
+    border-top:1px solid var(--line);
+  }
+  .chart-bar-wrap{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    height:100%;
+    justify-content:flex-end;
+  }
+  .chart-bar{
+    width:100%;
+    max-width:42px;
+    background:var(--green-tint);
+    border-radius:3px 3px 0 0;
+    position:relative;
+    transition:height .4s ease;
+  }
+  .chart-bar.current{background:var(--green);}
+  .chart-bar-amt{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.7rem;
+    margin-bottom:0.3rem;
+    color:var(--gray);
+    white-space:nowrap;
+  }
+  .chart-bar-amt.current{color:var(--green); font-weight:600;}
+  .chart-label{
+    margin-top:0.5rem;
+    font-size:0.72rem;
+    color:var(--gray);
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .chart-label.current{color:var(--ink); font-weight:600;}
+
+  /* ---------- footer / data tools ---------- */
+  .data-tools{
+    display:flex;
+    gap:0.6rem;
+    flex-wrap:wrap;
+    margin-top:0.5rem;
+  }
+  footer{
+    text-align:center;
+    color:var(--gray);
+    font-size:0.78rem;
+    padding:2rem 1rem 3rem;
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  #importFile{display:none;}
+
+  .section-divider{
+    margin:0.25rem 0 1rem;
+    font-size:0.78rem;
+    color:var(--gray);
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">Ledger<span>.</span></div>
+  <div class="month-nav">
+    <button id="prevMonth" aria-label="Previous month">&larr;</button>
+    <div class="month-label mono" id="monthLabel">June 2026</div>
+    <button id="nextMonth" aria-label="Next month">&rarr;</button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- LEFT COLUMN -->
+  <div>
+    <div class="panel">
+      <h2>This month</h2>
+      <div class="stat-row">
+        <div class="stat">
+          <div class="label">Income</div>
+          <div class="value" id="incomeStat">₹0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Spent</div>
+          <div class="value" id="spentStat">₹0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Remaining</div>
+          <div class="value green" id="remainingStat">₹0</div>
+        </div>
+      </div>
+
+      <label for="incomeInput">Monthly income (₹)</label>
+      <input type="number" id="incomeInput" min="0" step="0.01" placeholder="0.00" style="margin-bottom:0.5rem;">
+    </div>
+
+    <div class="panel">
+      <h2>Budgets <span class="meta">by category</span></h2>
+      <div id="gaugeList"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Month over month</h2>
+      <div class="chart-area" id="chartArea"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div>
+    <div class="panel">
+      <h2>Add transaction</h2>
+      <form class="add-form" id="addForm">
+        <div>
+          <label for="txDate">Date</label>
+          <input type="date" id="txDate" required>
+        </div>
+        <div>
+          <label for="txAmount">Amount (₹)</label>
+          <input type="number" id="txAmount" min="0" step="0.01" placeholder="0.00" required>
+        </div>
+        <div class="full">
+          <label for="txDesc">Description</label>
+          <input type="text" id="txDesc" placeholder="e.g. Groceries at D-Mart" required>
+        </div>
+        <div>
+          <label for="txCategory">Category</label>
+          <select id="txCategory"></select>
+        </div>
+        <div>
+          <label for="txMethod">Payment method</label>
+          <select id="txMethod">
+            <option>UPI</option>
+            <option>Cash</option>
+            <option>Debit Card</option>
+            <option>Credit Card</option>
+            <option>Bank Transfer</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div class="full">
+          <button type="submit" class="btn btn-primary">Add transaction</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Transactions <span class="meta" id="txCountMeta"></span></h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Description</th>
+            <th>Category</th>
+            <th>Method</th>
+            <th class="num">Amount</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="txBody"></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Manage budgets &amp; categories</h2>
+      <div class="section-divider">Set a monthly cap per category. Leave blank for no cap.</div>
+      <div id="budgetEditor"></div>
+      <form id="catForm" style="display:flex; gap:0.6rem; margin-top:1rem;">
+        <input type="text" id="newCatName" placeholder="New category name" style="flex:1;">
+        <button type="submit" class="btn btn-outline">Add category</button>
+      </form>
+    </div>
+
+    <div class="panel">
+      <h2>Data</h2>
+      <div class="data-tools">
+        <button class="btn btn-outline" id="exportBtn">Export JSON</button>
+        <button class="btn btn-outline" id="exportCsvBtn">Export CSV</button>
+        <button class="btn btn-outline" id="importBtn">Import JSON</button>
+        <input type="file" id="importFile" accept="application/json">
+        <button class="btn btn-outline" id="clearBtn" style="color:var(--rust); border-color:var(--rust);">Clear this month</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<footer>Stored locally in your browser — nothing leaves this page.</footer>
+
+<script>
+/* ---------------------------------------------------------
+   STATE
+   Data shape:
+   {
+     "2026-06": {
+        income: 50000,
+        budgets: { "Groceries": 8000, ... },
+        transactions: [ {date, desc, category, method, amount}, ... ]
+     },
+     categories: ["Housing","Groceries",...]   // global list
+   }
+--------------------------------------------------------- */
+
+const STORAGE_KEY = "ledger_expense_data_v1";
+const DEFAULT_CATEGORIES = [
+  "Housing","Utilities","Groceries","Transportation","Insurance",
+  "Healthcare","Entertainment","Dining Out","Subscriptions",
+  "Personal Care","Savings","Other"
+];
+
+function loadData(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return { categories: [...DEFAULT_CATEGORIES], months: {} };
+}
+
+function saveData(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+let data = loadData();
+if(!data.categories) data.categories = [...DEFAULT_CATEGORIES];
+if(!data.months) data.months = {};
+
+let current = new Date();
+current.setDate(1);
+
+function monthKey(d){
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+}
+
+function ensureMonth(key){
+  if(!data.months[key]){
+    data.months[key] = { income:0, budgets:{}, transactions:[] };
+  }
+  return data.months[key];
+}
+
+const MONTH_NAMES = ["January","February","March","April","May","June",
+  "July","August","September","October","November","December"];
+
+function fmtINR(n){
+  const num = Number(n) || 0;
+  return "₹" + num.toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+/* ---------------------------------------------------------
+   RENDERING
+--------------------------------------------------------- */
+
+function render(){
+  const key = monthKey(current);
+  const month = ensureMonth(key);
+
+  document.getElementById("monthLabel").textContent =
+    MONTH_NAMES[current.getMonth()] + " " + current.getFullYear();
+
+  document.getElementById("incomeInput").value = month.income || "";
+
+  // category select
+  const sel = document.getElementById("txCategory");
+  sel.innerHTML = "";
+  data.categories.forEach(c=>{
+    const o = document.createElement("option");
+    o.value = c; o.textContent = c;
+    sel.appendChild(o);
+  });
+
+  renderStats(month);
+  renderGauges(month);
+  renderTransactions(month);
+  renderBudgetEditor(month);
+  renderChart();
+}
+
+function renderStats(month){
+  const spent = month.transactions.reduce((s,t)=>s+Number(t.amount),0);
+  const remaining = (Number(month.income)||0) - spent;
+  document.getElementById("incomeStat").textContent = fmtINR(month.income||0);
+  document.getElementById("spentStat").textContent = fmtINR(spent);
+  const remEl = document.getElementById("remainingStat");
+  remEl.textContent = fmtINR(remaining);
+  remEl.className = "value " + (remaining < 0 ? "rust" : "green");
+}
+
+function renderGauges(month){
+  const list = document.getElementById("gaugeList");
+  list.innerHTML = "";
+
+  const totalsByCategory = {};
+  month.transactions.forEach(t=>{
+    totalsByCategory[t.category] = (totalsByCategory[t.category]||0) + Number(t.amount);
+  });
+
+  const catsWithBudget = data.categories.filter(c => month.budgets[c] && month.budgets[c] > 0);
+  const catsWithSpend = data.categories.filter(c => totalsByCategory[c] && !catsWithBudget.includes(c));
+  const showCats = [...catsWithBudget, ...catsWithSpend];
+
+  if(showCats.length === 0){
+    list.innerHTML = '<div class="no-budget-note">No budgets set and no spending yet. Add a budget below or log a transaction.</div>';
+    return;
+  }
+
+  showCats.forEach(cat=>{
+    const spent = totalsByCategory[cat] || 0;
+    const budget = month.budgets[cat] || 0;
+    const row = document.createElement("div");
+    row.className = "gauge-row";
+
+    let figsHTML;
+    let pct, over;
+    if(budget > 0){
+      pct = Math.min((spent/budget)*100, 100);
+      over = spent > budget;
+      figsHTML = `<span class="${over?'over':''}">${fmtINR(spent)} / ${fmtINR(budget)}</span>`;
+    } else {
+      pct = 100; // show as filled but neutral, no cap
+      over = false;
+      figsHTML = `<span>${fmtINR(spent)} <em style="font-style:italic;">(no cap)</em></span>`;
+    }
+
+    row.innerHTML = `
+      <div class="gauge-top">
+        <span class="cat-name">${cat}</span>
+        <span class="cat-figs">${figsHTML}</span>
+      </div>
+      <div class="gauge-track">
+        <div class="gauge-fill ${over?'over':''}" style="width:${budget>0?pct:100}%; ${budget===0?'background:var(--gray); opacity:.35;':''}"></div>
+        ${budget>0 ? `<div class="gauge-tick" style="left:${Math.min((spent/budget)*100,100)}%;"></div>` : ""}
+      </div>
+    `;
+    list.appendChild(row);
+  });
+}
+
+function renderTransactions(month){
+  const body = document.getElementById("txBody");
+  body.innerHTML = "";
+
+  const sorted = [...month.transactions]
+    .map((t,i)=>({...t, _idx:i}))
+    .sort((a,b)=> b.date.localeCompare(a.date));
+
+  document.getElementById("txCountMeta").textContent =
+    month.transactions.length ? month.transactions.length + " entries" : "";
+
+  if(sorted.length === 0){
+    body.innerHTML = `<tr class="empty-row"><td colspan="6">No transactions yet this month. Add one above.</td></tr>`;
+    return;
+  }
+
+  sorted.forEach(t=>{
+    const tr = document.createElement("tr");
+    const d = new Date(t.date + "T00:00:00");
+    const dateStr = d.toLocaleDateString("en-IN", {day:"2-digit", month:"short"});
+    tr.innerHTML = `
+      <td class="mono">${dateStr}</td>
+      <td>${escapeHTML(t.desc)}</td>
+      <td class="cat">${escapeHTML(t.category)}</td>
+      <td class="cat">${escapeHTML(t.method)}</td>
+      <td class="num">${fmtINR(t.amount)}</td>
+      <td><button class="btn-danger-text" data-idx="${t._idx}">remove</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll("button[data-idx]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const idx = Number(btn.dataset.idx);
+      month.transactions.splice(idx,1);
+      saveData();
+      render();
+    });
+  });
+}
+
+function renderBudgetEditor(month){
+  const wrap = document.getElementById("budgetEditor");
+  wrap.innerHTML = "";
+
+  data.categories.forEach(cat=>{
+    const row = document.createElement("div");
+    row.style.display = "grid";
+    row.style.gridTemplateColumns = "1fr 130px auto";
+    row.style.gap = "0.6rem";
+    row.style.alignItems = "center";
+    row.style.marginBottom = "0.5rem";
+
+    row.innerHTML = `
+      <div style="font-size:0.88rem;">${escapeHTML(cat)}</div>
+      <input type="number" min="0" step="0.01" placeholder="0.00" value="${month.budgets[cat] ?? ""}" data-cat="${escapeHTML(cat)}" class="mono budget-input">
+      <button class="btn-danger-text" data-delcat="${escapeHTML(cat)}">remove</button>
+    `;
+    wrap.appendChild(row);
+  });
+
+  wrap.querySelectorAll(".budget-input").forEach(inp=>{
+    inp.addEventListener("change", ()=>{
+      const val = parseFloat(inp.value);
+      if(isNaN(val) || val <= 0){
+        delete month.budgets[inp.dataset.cat];
+      } else {
+        month.budgets[inp.dataset.cat] = val;
+      }
+      saveData();
+      renderGauges(month);
+    });
+  });
+
+  wrap.querySelectorAll("[data-delcat]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const cat = btn.dataset.delcat;
+      if(!confirm(`Remove category "${cat}"? Existing transactions keep this category label but it won't appear in the dropdown.`)) return;
+      data.categories = data.categories.filter(c=>c!==cat);
+      Object.values(data.months).forEach(m=> delete m.budgets[cat]);
+      saveData();
+      render();
+    });
+  });
+}
+
+function renderChart(){
+  const area = document.getElementById("chartArea");
+  area.innerHTML = "";
+
+  // last 6 months including current
+  const months = [];
+  for(let i=5;i>=0;i--){
+    const d = new Date(current.getFullYear(), current.getMonth()-i, 1);
+    months.push(d);
+  }
+
+  const totals = months.map(d=>{
+    const key = monthKey(d);
+    const m = data.months[key];
+    return m ? m.transactions.reduce((s,t)=>s+Number(t.amount),0) : 0;
+  });
+
+  const max = Math.max(...totals, 1);
+
+  months.forEach((d,i)=>{
+    const key = monthKey(d);
+    const isCurrent = key === monthKey(current);
+    const total = totals[i];
+    const heightPct = (total/max)*100;
+
+    const col = document.createElement("div");
+    col.className = "chart-bar-wrap";
+    col.innerHTML = `
+      <div class="chart-bar-amt ${isCurrent?'current':''}">${total>0?fmtINR(total).replace('.00',''):''}</div>
+      <div class="chart-bar ${isCurrent?'current':''}" style="height:${Math.max(heightPct,2)}%;"></div>
+      <div class="chart-label ${isCurrent?'current':''}">${MONTH_NAMES[d.getMonth()].slice(0,3)}</div>
+    `;
+    area.appendChild(col);
+  });
+}
+
+function escapeHTML(str){
+  const div = document.createElement("div");
+  div.textContent = str ?? "";
+  return div.innerHTML;
+}
+
+/* ---------------------------------------------------------
+   EVENTS
+--------------------------------------------------------- */
+
+document.getElementById("prevMonth").addEventListener("click", ()=>{
+  current.setMonth(current.getMonth()-1);
+  render();
+});
+document.getElementById("nextMonth").addEventListener("click", ()=>{
+  current.setMonth(current.getMonth()+1);
+  render();
+});
+
+document.getElementById("incomeInput").addEventListener("change", (e)=>{
+  const key = monthKey(current);
+  const month = ensureMonth(key);
+  month.income = parseFloat(e.target.value) || 0;
+  saveData();
+  renderStats(month);
+});
+
+document.getElementById("addForm").addEventListener("submit", (e)=>{
+  e.preventDefault();
+  const key = monthKey(current);
+  const month = ensureMonth(key);
+
+  const dateVal = document.getElementById("txDate").value;
+  const amountVal = parseFloat(document.getElementById("txAmount").value);
+  const descVal = document.getElementById("txDesc").value.trim();
+  const catVal = document.getElementById("txCategory").value;
+  const methodVal = document.getElementById("txMethod").value;
+
+  if(!dateVal || isNaN(amountVal) || amountVal <= 0 || !descVal) return;
+
+  // if date belongs to a different month than current view, store in that month
+  const txMonthKey = dateVal.slice(0,7);
+  const targetMonth = ensureMonth(txMonthKey);
+  targetMonth.transactions.push({
+    date: dateVal, desc: descVal, category: catVal, method: methodVal, amount: amountVal
+  });
+
+  saveData();
+  e.target.reset();
+  // restore default date to today for convenience
+  document.getElementById("txDate").value = dateVal;
+  render();
+});
+
+document.getElementById("catForm").addEventListener("submit", (e)=>{
+  e.preventDefault();
+  const input = document.getElementById("newCatName");
+  const name = input.value.trim();
+  if(!name) return;
+  if(data.categories.includes(name)){
+    input.value = "";
+    return;
+  }
+  data.categories.push(name);
+  saveData();
+  input.value = "";
+  render();
+});
+
+document.getElementById("exportBtn").addEventListener("click", ()=>{
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:"application/json"});
+  downloadBlob(blob, "ledger-data.json");
+});
+
+document.getElementById("exportCsvBtn").addEventListener("click", ()=>{
+  const key = monthKey(current);
+  const month = ensureMonth(key);
+  let csv = "Date,Description,Category,Payment Method,Amount\n";
+  month.transactions.forEach(t=>{
+    csv += `${t.date},"${(t.desc||"").replace(/"/g,'""')}",${t.category},${t.method},${t.amount}\n`;
+  });
+  const blob = new Blob([csv], {type:"text/csv"});
+  downloadBlob(blob, `expenses-${key}.csv`);
+});
+
+document.getElementById("importBtn").addEventListener("click", ()=>{
+  document.getElementById("importFile").click();
+});
+
+document.getElementById("importFile").addEventListener("change", (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = (evt)=>{
+    try{
+      const imported = JSON.parse(evt.target.result);
+      if(!imported.months || !imported.categories) throw new Error("bad format");
+      data = imported;
+      saveData();
+      render();
+      alert("Data imported.");
+    }catch(err){
+      alert("Could not read this file. Make sure it's a Ledger export.");
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+});
+
+document.getElementById("clearBtn").addEventListener("click", ()=>{
+  const key = monthKey(current);
+  if(!confirm(`Clear all transactions for ${MONTH_NAMES[current.getMonth()]} ${current.getFullYear()}? This cannot be undone.`)) return;
+  data.months[key] = { income: data.months[key]?.income || 0, budgets: data.months[key]?.budgets || {}, transactions: [] };
+  saveData();
+  render();
+});
+
+function downloadBlob(blob, filename){
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// default date field to today
+document.getElementById("txDate").value = new Date().toISOString().slice(0,10);
+
+render();
+</script>
+</body>
+</html>
